@@ -73,7 +73,8 @@ async function poll(){
   try{ const d=await (await fetch(API+'/top?game='+game+'&n=10',{cache:'no-store'})).json();
     document.getElementById('round').textContent='Round '+d.round;
     const b=document.getElementById('board'); b.innerHTML='';
-    d.top.forEach((e,i)=>{ const r=document.createElement('div'); r.className='row r'+(i+1)+(!first&&!lastIds.has(e.id)?' new':''); r.innerHTML=`<span class="n">${i+1}</span><span>${esc(e.name)}</span><span class="s">${e.score.toLocaleString('en-GB')}</span>`; b.appendChild(r); });
+    const seen={}; d.top.forEach(e=>{ const k=e.name; seen[k]=seen[k]||[]; if(!seen[k].includes(e.tag||e.id)) seen[k].push(e.tag||e.id); e.disp = seen[k].length>1 ? e.name+' ('+seen[k].indexOf(e.tag||e.id)+1+')' : e.name; });
+    d.top.forEach((e,i)=>{ const r=document.createElement('div'); r.className='row r'+(i+1)+(!first&&!lastIds.has(e.id)?' new':''); r.innerHTML=`<span class="n">${i+1}</span><span>${esc(e.disp||e.name)}</span><span class="s">${e.score.toLocaleString('en-GB')}</span>`; b.appendChild(r); });
     for(let i=d.top.length;i<10;i++){ const r=document.createElement('div'); r.className='row'; r.style.opacity=.35; r.innerHTML=`<span class="n">${i+1}</span><span>—</span><span class="s"></span>`; b.appendChild(r); }
     if(!first && d.top[0] && (!lastTop || d.top[0].id!==lastTop.id) ) flash(d.top[0]);
     lastTop=d.top[0]||null; lastIds=new Set(d.top.map(e=>e.id)); first=false;

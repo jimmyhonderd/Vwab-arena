@@ -7,8 +7,11 @@ CREATE TABLE IF NOT EXISTS scores (
   ts INTEGER NOT NULL,
   round INTEGER NOT NULL DEFAULT 1,
   ip TEXT,
-  hidden INTEGER NOT NULL DEFAULT 0
+  hidden INTEGER NOT NULL DEFAULT 0,
+  dev TEXT,
+  claim TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_scores_claim ON scores(claim);
 CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game, round, hidden, score DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_ip ON scores(ip, ts);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);

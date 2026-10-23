@@ -32,7 +32,10 @@ jobs:
           echo "database id: $ID"
           sed -i "s/REPLACE_ME/$ID/" wrangler.toml
       - name: Schema toepassen
-        run: wrangler d1 execute vwab-arena --remote --file=schema.sql
+        run: |
+          wrangler d1 execute vwab-arena --remote --command "ALTER TABLE scores ADD COLUMN dev TEXT" || true
+          wrangler d1 execute vwab-arena --remote --command "ALTER TABLE scores ADD COLUMN claim TEXT" || true
+          wrangler d1 execute vwab-arena --remote --file=schema.sql
       - name: Deploy worker
         id: deploy
         run: |
