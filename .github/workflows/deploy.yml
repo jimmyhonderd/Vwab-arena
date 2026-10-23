@@ -40,8 +40,9 @@ jobs:
           URL=$(echo "$OUT" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
           echo "url=$URL" >> "$GITHUB_OUTPUT"
       - name: Admin-sleutel instellen
-        if: ${{ secrets.ADMIN_KEY != '' }}
-        run: echo "${{ secrets.ADMIN_KEY }}" | wrangler secret put ADMIN_KEY
+        env:
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+        run: if [ -n "$ADMIN_KEY" ]; then echo "$ADMIN_KEY" | wrangler secret put ADMIN_KEY; else echo "geen ADMIN_KEY secret"; fi
       - name: Service-URL vastleggen
         run: |
           echo "{\"api\":\"${{ steps.deploy.outputs.url }}\"}" > public/config.json
