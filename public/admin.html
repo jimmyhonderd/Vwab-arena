@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VWAB Arena Beheer</title>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#050505;color:#eaf6ff;font-family:"Barlow Semi Condensed",Bahnschrift,"Arial Narrow",sans-serif;padding:16px;max-width:900px;margin:auto}
+h1{font-family:Anton,Impact,sans-serif;font-weight:400;color:#ffd100;letter-spacing:.04em;margin:0 0 12px}
+.card{border:1px solid #22e6ff55;padding:14px;margin-bottom:14px;background:#0a0f18}
+input,button,select{font:600 16px inherit;padding:10px 12px;border-radius:6px;border:1px solid #39ff5a;background:#000;color:#fff}
+button{background:#ffd100;color:#000;border:0;cursor:pointer}button.danger{background:#ff3b4a;color:#fff}button.ghost{background:#111;color:#eaf6ff;border:1px solid #444}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:15px}td,th{padding:6px 8px;border-bottom:1px solid #222;text-align:left}td.n{text-align:right;font-variant-numeric:tabular-nums;color:#ffd100}tr.h td{opacity:.4;text-decoration:line-through}
+#msg{color:#22e6ff;min-height:1.4em}small{color:#889}
+</style>
+</head>
+<body>
+<h1>VWAB ARENA · BEHEER</h1>
+<div class="card"><div class="row"><input id="key" type="password" placeholder="Beheersleutel" style="flex:1"><button id="login">Inloggen</button></div><div id="msg"></div></div>
+<div class="card" id="panel" hidden>
+  <div class="row"><b>Ronde: <span id="round">?</span></b><button id="newround" class="danger">Nieuwe ronde starten (bord leeg)</button><button id="export" class="ghost">Export CSV</button><button id="refresh" class="ghost">Vernieuwen</button></div>
+  <div class="row"><input id="hidename" placeholder="Naam verbergen (alle scores)"><button id="hidebtn" class="danger">Verberg naam</button></div>
+  <small>Verbergen is omkeerbaar per score (knop in de lijst). Een nieuwe ronde bewaart de oude scores; ze tellen alleen niet meer mee op het bord.</small>
+  <table><thead><tr><th>#</th><th>Naam</th><th class="n">Score</th><th>Duur</th><th>Tijd</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+<script>
+(async()=>{
+let API=''; try{ API=(await (await fetch('config.json',{cache:'no-store'})).json()).api; }catch(_){}
+const $=id=>document.getElementById(id); const game='invasie';
+let KEY=sessionStorage.getItem('vwab-admin')||''; if(KEY){ $('key').value=KEY; }
+const call=async(p,opt={})=>{ const r=await fetch(API+p,{...opt,headers:{'Content-Type':'application/json','X-Admin-Key':KEY,...(opt.headers||{})}}); return r; };
+async function load(){ const r=await call('/admin/list?game='+game); if(r.status===401){ $('msg').textContent='Sleutel onjuist.'; $('panel').hidden=true; return; } const d=await r.json(); $('round').textContent=d.round; $('panel').hidden=false; $('msg').textContent='Ingelogd. Service: '+API;
+  $('rows').innerHTML=d.rows.map((e,i)=>`<tr class="${e.hidden?'h':''}"><td>${e.id}</td><td>${e.name}</td><td class="n">${e.score}</td><td>${e.dur}s</td><td>${new Date(e.ts).toLocaleTimeString('nl-NL')}</td><td><button class="ghost" data-id="${e.id}" data-un="${e.hidden?1:0}">${e.hidden?'Toon':'Verberg'}</button></td></tr>`).join('');
+  $('rows').querySelectorAll('button').forEach(b=>b.onclick=async()=>{ await call('/admin/hide',{method:'POST',body:JSON.stringify({id:+b.dataset.id,unhide:b.dataset.un==='1'})}); load(); }); }
+$('login').onclick=()=>{ KEY=$('key').value.trim(); sessionStorage.setItem('vwab-admin',KEY); load(); };
+$('refresh').onclick=load;
+$('newround').onclick=async()=>{ if(!confirm('Nieuwe ronde starten? Het bord begint leeg.')) return; await call('/admin/newround',{method:'POST'}); load(); };
+$('hidebtn').onclick=async()=>{ const n=$('hidename').value.trim(); if(!n) return; await call('/admin/hidename',{method:'POST',body:JSON.stringify({name:n})}); $('hidename').value=''; load(); };
+$('export').onclick=async()=>{ const r=await call('/admin/export?game='+game); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='vwab-arena.csv'; a.click(); };
+if(KEY) load();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+name: Deploy scoreservice + scorebord
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install wrangler
+        run: npm i -g wrangler@4
+      - name: Database aanmaken of ophalen
+        id: db
+        run: |
+          set -e
+          ID=$(wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const l=JSON.parse(s);const d=l.find(x=>x.name==="vwab-arena");console.log(d?d.uuid:"")})')
+          if [ -z "$ID" ]; then wrangler d1 create vwab-arena >/dev/null; ID=$(wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const l=JSON.parse(s);console.log(l.find(x=>x.name==="vwab-arena").uuid)})'); fi
+          echo "database id: $ID"
+          sed -i "s/REPLACE_ME/$ID/" wrangler.toml
+      - name: Schema toepassen
+        run: wrangler d1 execute vwab-arena --remote --file=schema.sql
+      - name: Deploy worker
+        id: deploy
+        run: |
+          OUT=$(wrangler deploy 2>&1); echo "$OUT"
+          URL=$(echo "$OUT" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+      - name: Admin-sleutel instellen
+        if: ${{ secrets.ADMIN_KEY != '' }}
+        run: echo "${{ secrets.ADMIN_KEY }}" | wrangler secret put ADMIN_KEY
+      - name: Service-URL vastleggen
+        run: |
+          echo "{\"api\":\"${{ steps.deploy.outputs.url }}\"}" > public/config.json
+          git config user.name "deploy-bot"; git config user.email "deploy@users.noreply.github.com"
+          git add public/config.json; git diff --cached --quiet || (git commit -m "Service-URL bijgewerkt [skip ci]" && git push)
+  pages:
+    needs: worker
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: git pull --ff-only || true
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4

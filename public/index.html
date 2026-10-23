@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VWAB Tournament Leaderboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: 16:9 big screen; left = top 10, right = QR + recent + stats. Scales with vw/vh. */
+:root{--bg:#050505;--ink:#eaf6ff;--yel:#ffd100;--cyan:#22e6ff;--mag:#ff2bd6;--green:#39ff5a;color-scheme:dark}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Barlow Semi Condensed",Bahnschrift,"Arial Narrow",sans-serif;overflow:hidden;
+  background-image:radial-gradient(rgba(34,230,255,.08) 1px,transparent 1.6px);background-size:1.2vw 1.2vw}
+.stage{height:100%;display:grid;grid-template-columns:1.25fr 1fr;grid-template-rows:auto 1fr auto;gap:2vh 3vw;padding:3vh 4vw;box-sizing:border-box}
+header{grid-column:1/3;display:flex;align-items:baseline;justify-content:space-between;gap:2vw}
+h1{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:7vh;margin:0;letter-spacing:.04em;line-height:1;
+  background:linear-gradient(90deg,var(--green),var(--cyan) 35%,var(--yel) 65%,var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 1.2vh rgba(34,230,255,.5))}
+h1 small{display:block;font-size:2.2vh;letter-spacing:.3em;color:var(--cyan);-webkit-text-fill-color:var(--cyan);filter:none;margin-top:.6vh}
+.round{font-size:2.4vh;letter-spacing:.2em;color:var(--yel);text-transform:uppercase}
+.board{display:flex;flex-direction:column;gap:.9vh;min-height:0}
+.row{display:grid;grid-template-columns:5vh 1fr auto;align-items:center;gap:2vw;padding:1.1vh 2vw;border:1px solid rgba(34,230,255,.3);background:rgba(5,10,20,.6);font-size:3.6vh;font-weight:700;letter-spacing:.04em;transition:transform .3s}
+.row .n{color:var(--cyan);font-family:Anton,Impact,sans-serif;font-weight:400;font-size:3.4vh}
+.row .s{font-variant-numeric:tabular-nums;color:var(--yel);text-shadow:0 0 1vh rgba(255,209,0,.6)}
+.row.r1{border-color:var(--yel);box-shadow:0 0 2vh rgba(255,209,0,.35);font-size:4.4vh}
+.row.r1 .n{color:var(--yel)}
+.row.new{animation:pop .8s ease-out}
+@keyframes pop{0%{transform:scale(1.06);background:rgba(255,209,0,.25)}100%{transform:scale(1)}}
+aside{display:grid;grid-template-rows:auto 1fr auto;gap:2vh;min-height:0}
+.qr{display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:center;border:1px solid rgba(255,209,0,.5);padding:2vh 2vw;background:rgba(5,10,20,.6)}
+.qr canvas{width:22vh;height:22vh;image-rendering:pixelated;background:#fff;padding:1vh;box-sizing:border-box}
+.qr .t{font-size:2.8vh;line-height:1.3}.qr .t b{display:block;font-family:Anton,Impact,sans-serif;font-weight:400;font-size:4vh;color:var(--yel);letter-spacing:.04em}
+.qr .u{font-size:2.2vh;color:var(--cyan);word-break:break-all}
+.recent{border:1px solid rgba(255,43,214,.4);padding:1.5vh 2vw;background:rgba(5,10,20,.6);min-height:0;overflow:hidden}
+.recent h2,.stats h2{font-size:2vh;letter-spacing:.3em;color:var(--mag);margin:0 0 1vh;text-transform:uppercase;font-weight:600}
+.recent #recent>div{display:flex;justify-content:space-between;font-size:2.8vh;padding:.4vh 0;border-bottom:1px dashed rgba(255,255,255,.12)}
+.recent #recent>div span:last-child{color:var(--yel);font-variant-numeric:tabular-nums}
+.stats{display:flex;gap:3vw;border:1px solid rgba(57,255,90,.4);padding:1.5vh 2vw;background:rgba(5,10,20,.6)}
+.stats div{flex:1}.stats b{display:block;font-family:Anton,Impact,sans-serif;font-weight:400;font-size:5vh;color:var(--green);line-height:1}
+footer{grid-column:1/3;display:flex;justify-content:space-between;font-size:2vh;letter-spacing:.2em;color:rgba(234,246,255,.5);text-transform:uppercase}
+#flash{position:fixed;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.75);opacity:0;pointer-events:none;transition:opacity .3s}
+#flash.on{opacity:1}
+#flash .in{text-align:center;font-family:Anton,Impact,sans-serif;font-weight:400}
+#flash .a{font-size:6vh;color:var(--cyan);letter-spacing:.3em}
+#flash .b{font-size:16vh;color:var(--yel);line-height:1;text-shadow:0 0 3vh rgba(255,209,0,.8)}
+#flash .c{font-size:8vh;color:#fff}
+.err{color:#ff6b6b;font-size:2.4vh}
+</style>
+</head>
+<body>
+<div class="stage">
+  <header><h1>VWAB TOURNAMENT<small>INVASIE-INATOR · VROEGER WAS ALLES BETER</small></h1><div class="round" id="round">Round 1</div></header>
+  <section class="board" id="board"></section>
+  <aside>
+    <div class="qr"><canvas id="qr" width="33" height="33"></canvas><div class="t"><b>JOIN IN</b>Scan, enter your name and play.<div class="u" id="playurl"></div></div></div>
+    <div class="recent"><h2>Just played</h2><div id="recent"></div></div>
+    <div class="stats"><div><h2>Players</h2><b id="players">0</b></div><div><h2>Games</h2><b id="games">0</b></div><div><h2>Top score</h2><b id="topscore">0</b></div></div>
+  </aside>
+  <footer><span>POWERED BY LEDJOCKEY</span><span id="status">connecting…</span></footer>
+</div>
+<div id="flash"><div class="in"><div class="a">NEW TOP SCORE</div><div class="b" id="fname"></div><div class="c" id="fscore"></div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(async()=>{
+const q=new URLSearchParams(location.search); const game=q.get('game')||'invasie';
+const PLAY=q.get('play')||'https://jimmyhonderd.github.io/Invasie-inator/';
+document.getElementById('playurl').textContent=PLAY.replace('https://','');
+let API=q.get('api')||''; if(!API){ try{ API=(await (await fetch('config.json',{cache:'no-store'})).json()).api; }catch(_){} }
+(function drawQR(){ try{ const q=qrcode(0,'M'); q.addData(PLAY); q.make(); const n=q.getModuleCount(); const c=document.getElementById('qr'); c.width=n+8; c.height=n+8; const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.fillStyle='#000'; for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(q.isDark(y,x)) g.fillRect(x+4,y+4,1,1); }catch(e){ document.getElementById('qr').remove(); } })();
+/* --- polling --- */
+let lastTop=null, lastIds=new Set(), first=true;
+async function poll(){
+  if(!API){ document.getElementById('status').textContent='no service url'; return; }
+  try{ const d=await (await fetch(API+'/top?game='+game+'&n=10',{cache:'no-store'})).json();
+    document.getElementById('round').textContent='Round '+d.round;
+    const b=document.getElementById('board'); b.innerHTML='';
+    d.top.forEach((e,i)=>{ const r=document.createElement('div'); r.className='row r'+(i+1)+(!first&&!lastIds.has(e.id)?' new':''); r.innerHTML=`<span class="n">${i+1}</span><span>${esc(e.name)}</span><span class="s">${e.score.toLocaleString('en-GB')}</span>`; b.appendChild(r); });
+    for(let i=d.top.length;i<10;i++){ const r=document.createElement('div'); r.className='row'; r.style.opacity=.35; r.innerHTML=`<span class="n">${i+1}</span><span>—</span><span class="s"></span>`; b.appendChild(r); }
+    if(!first && d.top[0] && (!lastTop || d.top[0].id!==lastTop.id) ) flash(d.top[0]);
+    lastTop=d.top[0]||null; lastIds=new Set(d.top.map(e=>e.id)); first=false;
+    document.getElementById('recent').innerHTML=d.recent.map(e=>`<div><span>${esc(e.name)}</span><span>${e.score.toLocaleString('en-GB')}</span></div>`).join('');
+    document.getElementById('players').textContent=d.players; document.getElementById('games').textContent=d.total; document.getElementById('topscore').textContent=d.top[0]?d.top[0].score.toLocaleString('en-GB'):'0';
+    document.getElementById('status').textContent='live · '+new Date().toLocaleTimeString('en-GB');
+  }catch(e){ document.getElementById('status').textContent='connection lost, retrying…'; }
+}
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function flash(e){ const f=document.getElementById('flash'); document.getElementById('fname').textContent=e.name; document.getElementById('fscore').textContent=e.score.toLocaleString('en-GB'); f.classList.add('on'); setTimeout(()=>f.classList.remove('on'),4500); }
+poll(); setInterval(poll, parseInt(q.get('interval')||'4000',10));
+})();
+</script>
+</body>
+</html>
