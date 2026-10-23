@@ -1,6 +1,6 @@
 // VWAB Arena score service (Cloudflare Worker + D1)
 const BAD=['kut','hoer','kanker','neger','nazi','hitler','fuck','shit','lul','pik','tering','tyfus','homo','slet'];
-const LIMITS={ invasie:{maxRate:80, minDur:5}, default:{maxRate:200, minDur:3} }; // max points per second
+const LIMITS={ invasie:{maxRate:600, minDur:5}, default:{maxRate:600, minDur:3} }; // max points per second
 
 function clean(n){ n=String(n||'').replace(/[^A-Za-z0-9 _\-!?.]/g,'').trim().slice(0,12).toUpperCase(); return BAD.some(b=>n.toLowerCase().includes(b))?'':n; }
 function cors(req,env){ const o=req.headers.get('Origin')||''; const allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()); const ok=allowed.includes(o)||o.startsWith('http://localhost')||o.startsWith('file://')||o==='';
