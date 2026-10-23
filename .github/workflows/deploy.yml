@@ -45,7 +45,7 @@ jobs:
         run: if [ -n "$ADMIN_KEY" ]; then echo "$ADMIN_KEY" | wrangler secret put ADMIN_KEY; else echo "geen ADMIN_KEY secret"; fi
       - name: Service-URL vastleggen
         run: |
-          echo "{\"api\":\"${{ steps.deploy.outputs.url }}\"}" > public/config.json
+          [ -n "${{ steps.deploy.outputs.url }}" ] && echo "{\"api\":\"${{ steps.deploy.outputs.url }}\"}" > public/config.json || true
           git config user.name "deploy-bot"; git config user.email "deploy@users.noreply.github.com"
           git add public/config.json; git diff --cached --quiet || (git commit -m "Service-URL bijgewerkt [skip ci]" && git push)
   pages:
