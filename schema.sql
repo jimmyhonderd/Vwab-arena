@@ -16,3 +16,6 @@ CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game, round, hidden, score 
 CREATE INDEX IF NOT EXISTS idx_scores_ip ON scores(ip, ts);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 INSERT OR IGNORE INTO meta (k, v) VALUES ('round', '1');
+
+CREATE TABLE IF NOT EXISTS tickets (nonce TEXT PRIMARY KEY, dev TEXT, ip TEXT, ts INTEGER, used INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS idx_tickets_ip ON tickets(ip, ts);

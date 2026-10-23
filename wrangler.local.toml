@@ -1,0 +1,12 @@
+name = "vwab-arena"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vwab-arena"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[vars]
+ALLOWED_ORIGINS = "https://jimmyhonderd.github.io"
