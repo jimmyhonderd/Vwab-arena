@@ -97,7 +97,7 @@ async function poll(){
 }
 function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function flash(e){ const f=document.getElementById('flash'); document.getElementById('fname').textContent=e.name; document.getElementById('fscore').textContent=e.score.toLocaleString('en-GB'); f.classList.add('on'); setTimeout(()=>f.classList.remove('on'),4500); }
-poll(); setInterval(poll, parseInt(q.get('interval')||'4000',10));
+poll(); setInterval(poll, parseInt(q.get('interval')||'6000',10));
 })();
 </script>
 </body>

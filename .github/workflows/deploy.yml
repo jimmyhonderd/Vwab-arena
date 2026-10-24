@@ -36,6 +36,8 @@ jobs:
           wrangler d1 execute vwab-arena --remote --command "ALTER TABLE scores ADD COLUMN dev TEXT" || true
           wrangler d1 execute vwab-arena --remote --command "ALTER TABLE scores ADD COLUMN claim TEXT" || true
           wrangler d1 execute vwab-arena --remote --file=schema.sql
+          wrangler d1 execute vwab-arena --remote --command "INSERT OR IGNORE INTO meta (k,v) SELECT 'cnt:'||game||':'||round, CAST(COUNT(*) AS TEXT) FROM scores WHERE hidden=0 GROUP BY game, round" || true
+          wrangler d1 execute vwab-arena --remote --command "INSERT OR IGNORE INTO meta (k,v) SELECT 'pl:'||game||':'||round, CAST(COUNT(DISTINCT dev) AS TEXT) FROM scores WHERE hidden=0 GROUP BY game, round" || true
       - name: Deploy worker
         id: deploy
         run: |
