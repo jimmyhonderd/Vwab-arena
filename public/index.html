@@ -17,7 +17,7 @@ h1{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:7vh;margin:0;le
   background:linear-gradient(90deg,var(--green),var(--cyan) 35%,var(--yel) 65%,var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 1.2vh rgba(34,230,255,.5))}
 h1 small{display:block;font-size:2.2vh;letter-spacing:.3em;color:var(--cyan);-webkit-text-fill-color:var(--cyan);filter:none;margin-top:.6vh}
 .round{font-size:2.4vh;letter-spacing:.2em;color:var(--yel);text-transform:uppercase}
-.board{display:flex;flex-direction:column;gap:.9vh;min-height:0;overflow:hidden}
+.board{display:flex;flex-direction:column;gap:.9vh;min-height:0;min-width:0;overflow:hidden}
 .row{display:grid;grid-template-columns:5vh 1fr auto;align-items:center;gap:2vw;padding:1.1vh 2vw;border:1px solid rgba(34,230,255,.3);background:rgba(5,10,20,.6);font-size:3.6vh;font-weight:700;letter-spacing:.04em;transition:transform .3s}
 .row .n{color:var(--cyan);font-family:Anton,Impact,sans-serif;font-weight:400;font-size:3.4vh}
 .row .s{font-variant-numeric:tabular-nums;color:var(--yel);text-shadow:0 0 1vh rgba(255,209,0,.6)}
@@ -44,6 +44,18 @@ footer{grid-column:1/3;display:flex;justify-content:space-between;font-size:2vh;
 #flash .b{font-size:16vh;color:var(--yel);line-height:1;text-shadow:0 0 3vh rgba(255,209,0,.8)}
 #flash .c{font-size:8vh;color:#fff}
 .err{color:#ff6b6b;font-size:2.4vh}
+@media (max-aspect-ratio: 1/1){
+  body{overflow:auto}
+  .stage{height:auto;min-height:100%;grid-template-columns:1fr;grid-template-rows:auto auto auto auto;gap:2vh 0;padding:3vh 4vw 4vh}
+  header,footer{grid-column:1}
+  h1{font-size:9vw}h1 small{font-size:3.2vw}
+  .board{overflow:visible}
+  .row{font-size:5vw;padding:1.6vw 3vw;grid-template-columns:8vw 1fr auto;gap:3vw}.row .n{font-size:5vw}.row.r1{font-size:6vw}
+  aside{grid-template-rows:auto auto auto}
+  .qr canvas{width:30vw;height:30vw}.qr .t{font-size:4vw}.qr .t b{font-size:6vw}.qr .u{font-size:3.2vw}
+  .recent div{font-size:4vw}.recent h2,.stats h2{font-size:3vw}.stats b{font-size:7vw}
+  footer{font-size:3vw}
+}
 </style>
 </head>
 <body>
@@ -73,7 +85,7 @@ async function poll(){
   try{ const d=await (await fetch(API+'/top?game='+game+'&n=10',{cache:'no-store'})).json();
     document.getElementById('round').textContent='Round '+d.round;
     const b=document.getElementById('board'); b.innerHTML='';
-    const seen={}; d.top.forEach(e=>{ const k=e.name; seen[k]=seen[k]||[]; if(!seen[k].includes(e.tag||e.id)) seen[k].push(e.tag||e.id); e.disp = seen[k].length>1 ? e.name+' ('+seen[k].indexOf(e.tag||e.id)+1+')' : e.name; });
+    const seen={}; d.top.forEach(e=>{ const k=e.name; seen[k]=seen[k]||[]; if(!seen[k].includes(e.tag||e.id)) seen[k].push(e.tag||e.id); e.disp = seen[k].length>1 ? e.name+' ('+(seen[k].indexOf(e.tag||e.id)+1)+')' : e.name; });
     d.top.forEach((e,i)=>{ const r=document.createElement('div'); r.className='row r'+(i+1)+(!first&&!lastIds.has(e.id)?' new':''); r.innerHTML=`<span class="n">${i+1}</span><span>${esc(e.disp||e.name)}</span><span class="s">${e.score.toLocaleString('en-GB')}</span>`; b.appendChild(r); });
     for(let i=d.top.length;i<10;i++){ const r=document.createElement('div'); r.className='row'; r.style.opacity=.35; r.innerHTML=`<span class="n">${i+1}</span><span>—</span><span class="s"></span>`; b.appendChild(r); }
     if(!first && d.top[0] && (!lastTop || d.top[0].id!==lastTop.id) ) flash(d.top[0]);
