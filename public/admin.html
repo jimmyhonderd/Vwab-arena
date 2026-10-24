@@ -24,6 +24,7 @@ table{width:100%;border-collapse:collapse;font-size:15px}td,th{padding:6px 8px;b
   <div class="row"><input id="rfrom" type="number" placeholder="id van" style="width:110px"><input id="rto" type="number" placeholder="id t/m" style="width:110px"><button id="rangebtn" class="danger">Verberg reeks</button></div>
   <small>Verbergen is omkeerbaar per score (knop in de lijst). Een nieuwe ronde bewaart de oude scores; ze tellen alleen niet meer mee op het bord.</small>
   <table><thead><tr><th>#</th><th>Naam</th><th class="n">Score</th><th>Code</th><th>Duur</th><th>Tijd</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  <div class="row"><button id="more" class="ghost">Ouder laden</button><small id="cnt"></small></div>
 </div>
 <script>
 (async()=>{
@@ -31,12 +32,13 @@ let API=''; try{ API=(await (await fetch('config.json',{cache:'no-store'})).json
 const $=id=>document.getElementById(id); const game='invasie';
 let KEY=sessionStorage.getItem('vwab-admin')||''; if(KEY){ $('key').value=KEY; }
 const call=async(p,opt={})=>{ const r=await fetch(API+p,{...opt,headers:{'Content-Type':'application/json','X-Admin-Key':KEY,...(opt.headers||{})}}); return r; };
-async function load(){ const r=await call('/admin/list?game='+game); if(r.status===401){ $('msg').textContent='Sleutel onjuist.'; $('panel').hidden=true; return; } const d=await r.json(); $('round').textContent=d.round; $('panel').hidden=false; $('msg').textContent='Ingelogd. Service: '+API;
-  $('rows').innerHTML=d.rows.map((e,i)=>`<tr class="${e.hidden?'h':''}"><td>${e.id}</td><td>${e.name}</td><td class="n">${e.score}</td><td><code>${e.claim||''}</code></td><td>${e.dur}s</td><td>${new Date(e.ts).toLocaleTimeString('nl-NL')}</td><td><button class="ghost" data-id="${e.id}" data-un="${e.hidden?1:0}">${e.hidden?'Toon':'Verberg'}</button> <button class="danger" data-dev="${e.id}" title="Alle scores van dit toestel verbergen">Toestel</button></td></tr>`).join('');
+let allRows=[]; async function load(before){ const r=await call('/admin/list?game='+game+(before?'&before='+before:'')); if(r.status===401){ $('msg').textContent='Sleutel onjuist.'; $('panel').hidden=true; return; } const d=await r.json(); $('round').textContent=d.round; $('panel').hidden=false; $('msg').textContent='Ingelogd. Service: '+API; allRows = before ? allRows.concat(d.rows) : d.rows; $('cnt').textContent=allRows.length+' van '+d.total+' geladen'; $('more').hidden=d.rows.length<500;
+  $('rows').innerHTML=allRows.map((e,i)=>`<tr class="${e.hidden?'h':''}"><td>${e.id}</td><td>${e.name}</td><td class="n">${e.score}</td><td><code>${e.claim||''}</code></td><td>${e.dur}s</td><td>${new Date(e.ts).toLocaleTimeString('nl-NL')}</td><td><button class="ghost" data-id="${e.id}" data-un="${e.hidden?1:0}">${e.hidden?'Toon':'Verberg'}</button> <button class="danger" data-dev="${e.id}" title="Alle scores van dit toestel verbergen">Toestel</button></td></tr>`).join('');
   $('rows').querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{ await call('/admin/hide',{method:'POST',body:JSON.stringify({id:+b.dataset.id,unhide:b.dataset.un==='1'})}); load(); });
   $('rows').querySelectorAll('button[data-dev]').forEach(b=>b.onclick=async()=>{ if(!confirm('Alle scores van dit toestel verbergen?')) return; const d=await (await call('/admin/hidedev',{method:'POST',body:JSON.stringify({id:+b.dataset.dev})})).json(); $('msg').textContent=(d.changed||0)+' scores verborgen.'; load(); }); }
 $('login').onclick=()=>{ KEY=$('key').value.trim(); sessionStorage.setItem('vwab-admin',KEY); load(); };
-$('refresh').onclick=load;
+$('refresh').onclick=()=>load();
+$('more').onclick=()=>{ const last=allRows[allRows.length-1]; if(last) load(last.id); };
 $('newround').onclick=async()=>{ if(!confirm('Nieuwe ronde starten? Het bord begint leeg.')) return; await call('/admin/newround',{method:'POST'}); load(); };
 $('hidebtn').onclick=async()=>{ const n=$('hidename').value.trim(); if(!n) return; await call('/admin/hidename',{method:'POST',body:JSON.stringify({name:n})}); $('hidename').value=''; load(); };
 $('verifybtn').onclick=async()=>{ const c=$('verify').value.trim().toUpperCase(); if(!c) return; const d=await (await call('/admin/verify?code='+c)).json(); $('vres').innerHTML = d.ok ? `<b style="color:#39ff5a">✔ KLOPT</b> ${d.row.name} · ${d.row.score} · #${d.rank} in ronde ${d.row.round}${d.row.hidden?' (verborgen)':''}` : '<b style="color:#ff3b4a">✘ onbekende code</b>'; };
