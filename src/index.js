@@ -13,6 +13,7 @@ async function hmac(env,msg){ return (await sha(msg+'|'+(env.ADMIN_KEY||'vwab')+
 async function bump(env,key,by){ await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=CAST(CAST(v AS INTEGER)+? AS TEXT)").bind(key,String(by),by).run(); }
 async function counter(env,key){ const r=await env.DB.prepare('SELECT v FROM meta WHERE k=?').bind(key).first(); return r?parseInt(r.v,10)||0:0; }
 let memTop={}; // per-isolate cache
+async function closed(env){ const r=await env.DB.prepare("SELECT v FROM meta WHERE k='closed'").first(); return !!(r&&r.v==='1'); }
 async function round(env){ const r=await env.DB.prepare("SELECT v FROM meta WHERE k='round'").first(); return r?parseInt(r.v,10):1; }
 
 export default {
@@ -28,20 +29,20 @@ export default {
         const rows=await env.DB.prepare('SELECT id,name,score,ts,substr(dev,1,4) tag FROM scores WHERE game=? AND round=? AND hidden=0 ORDER BY score DESC, ts ASC LIMIT ?').bind(game,rd,n).all();
         const total=await counter(env,`cnt:${game}:${rd}`), players=await counter(env,`pl:${game}:${rd}`);
         const last=await env.DB.prepare('SELECT name,score,ts FROM scores WHERE game=? AND round=? AND hidden=0 ORDER BY ts DESC LIMIT 5').bind(game,rd).all();
-        const d={round:rd,top:rows.results,total,players,recent:last.results}; memTop[ck]={t:now,d};
+        const d={round:rd,closed:await closed(env),top:rows.results,total,players,recent:last.results}; memTop[ck]={t:now,d};
         await cache.put(cacheKey,new Response(JSON.stringify(d),{headers:{'Content-Type':'application/json','Cache-Control':'public, max-age=5'}}));
         return json(d,200,{...h,'X-Cache':'db'}); }
       if(p==='/rank'){ const game=(url.searchParams.get('game')||'invasie').slice(0,20); const sc=parseInt(url.searchParams.get('score')||'0',10); const rd=await round(env);
         const r=await env.DB.prepare('SELECT COUNT(*) c FROM scores WHERE game=? AND round=? AND hidden=0 AND score>?').bind(game,rd,sc).first();
         return json({rank:r.c+1,total:await counter(env,`cnt:${game}:${rd}`)},200,h); }
-      if(p==='/start' && req.method==='POST'){ const b=await req.json().catch(()=>({})); const dev=String(b.dev||'').replace(/[^a-f0-9]/g,'').slice(0,32); if(dev.length<16) return json({error:'dev'},400,h);
+      if(p==='/start' && req.method==='POST'){ const b=await req.json().catch(()=>({})); const dev=String(b.dev||'').replace(/[^a-f0-9]/g,'').slice(0,32); if(dev.length<16) return json({error:'dev'},400,h); if(await closed(env)) return json({error:'tournament closed'},403,h);
         const ip=await sha((req.headers.get('CF-Connecting-IP')||'')+'vwab'); const now=Date.now();
         const st=await env.DB.prepare('SELECT COUNT(*) c FROM tickets WHERE ip=? AND ts>?').bind(ip,now-60000).first(); if(st.c>=10) return json({error:'te snel'},429,h);
         const nonce=crypto.randomUUID().replace(/-/g,''); const mac=await hmac(env,`${dev}|${nonce}|${now}`);
         await env.DB.prepare('INSERT INTO tickets (nonce,dev,ip,ts,used) VALUES (?,?,?,?,0)').bind(nonce,dev,ip,now).run();
         return json({ticket:`${nonce}.${now}.${mac}`},200,h); }
       if(p==='/score' && req.method==='POST'){
-        const b=await req.json().catch(()=>null); if(!b) return json({error:'bad json'},400,h);
+        const b=await req.json().catch(()=>null); if(!b) return json({error:'bad json'},400,h); if(await closed(env)) return json({error:'tournament closed'},403,h);
         const game=String(b.game||'invasie').slice(0,20), name=clean(b.name), score=Math.floor(Number(b.score)), dur=Math.floor(Number(b.dur)||0), ts=Math.floor(Number(b.ts)||Date.now()); const dev=String(b.dev||'').replace(/[^a-f0-9]/g,'').slice(0,32)||null;
         if(!name) return json({error:'naam niet toegestaan'},400,h); if(!dev||dev.length<16) return json({error:'toestel'},400,h);
         if(!Number.isFinite(score)||score<0||score>5e7) return json({error:'score ongeldig'},400,h);
@@ -71,18 +72,19 @@ export default {
         if(p==='/admin/hiderange' && req.method==='POST'){ const b=await req.json(); const r=await env.DB.prepare('UPDATE scores SET hidden=1 WHERE id>=? AND id<=?').bind(b.from|0,b.to|0).run(); return json({ok:true,changed:r.meta.changes},200,h); }
         if(p==='/admin/hidename' && req.method==='POST'){ const b=await req.json(); await env.DB.prepare('UPDATE scores SET hidden=1 WHERE name=?').bind(clean(b.name)).run(); return json({ok:true},200,h); }
         if(p==='/admin/newround' && req.method==='POST'){ memTop={}; const rd=await round(env); await env.DB.prepare("UPDATE meta SET v=? WHERE k='round'").bind(String(rd+1)).run(); return json({ok:true,round:rd+1},200,h); }
-        if(p==='/admin/setround' && req.method==='POST'){ const b=await req.json(); await env.DB.prepare("UPDATE meta SET v=? WHERE k='round'").bind(String(b.round|0||1)).run(); return json({ok:true},200,h); }
+        if(p==='/admin/close' && req.method==='POST'){ memTop={}; const b=await req.json(); await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('closed',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(b.closed?'1':'0').run(); return json({ok:true,closed:!!b.closed},200,h); }
+        if(p==='/admin/setround' && req.method==='POST'){ memTop={}; const b=await req.json(); await env.DB.prepare("UPDATE meta SET v=? WHERE k='round'").bind(String(b.round|0||1)).run(); return json({ok:true},200,h); }
         if(p==='/admin/export'){ const rd=parseInt(url.searchParams.get('round')||String(await round(env)),10); const game=(url.searchParams.get('game')||'invasie').slice(0,20);
           const rows=await env.DB.prepare('SELECT id,name,score,dur,ts,hidden FROM scores WHERE game=? AND round=? ORDER BY score DESC').bind(game,rd).all();
           const csv='id;naam;score;duur;tijd;verborgen\n'+rows.results.map(r=>[r.id,r.name,r.score,r.dur,new Date(r.ts).toISOString(),r.hidden].join(';')).join('\n');
           return new Response(csv,{headers:{...h,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename=vwab-arena-ronde'+rd+'.csv'}}); }
         if(p==='/admin/top'){ const rd=await round(env); const game=(url.searchParams.get('game')||'invasie').slice(0,20); const rows=await env.DB.prepare('SELECT id,name,score,dur,ts,claim,substr(dev,1,4) tag FROM scores WHERE game=? AND round=? AND hidden=0 ORDER BY score DESC, ts ASC LIMIT 5').bind(game,rd).all(); return json({rows:rows.results},200,h); }
         if(p==='/admin/hidden'){ const rd=await round(env); const game=(url.searchParams.get('game')||'invasie').slice(0,20); const rows=await env.DB.prepare('SELECT id,name,score,dur,ts,claim,substr(dev,1,4) tag FROM scores WHERE game=? AND round=? AND hidden=1 ORDER BY id DESC LIMIT 500').bind(game,rd).all(); return json({rows:rows.results},200,h); }
-        if(p==='/admin/list'){ const rd=await round(env); const game=(url.searchParams.get('game')||'invasie').slice(0,20); const before=parseInt(url.searchParams.get('before')||'0',10)||2147483647; const rows=await env.DB.prepare('SELECT id,name,score,dur,ts,hidden,claim,substr(dev,1,4) tag FROM scores WHERE game=? AND round=? AND id<? ORDER BY id DESC LIMIT 500').bind(game,rd,before).all(); return json({round:rd,rows:rows.results,total:await counter(env,`cnt:${game}:${rd}`)},200,h); }
+        if(p==='/admin/list'){ const rd=await round(env); const game=(url.searchParams.get('game')||'invasie').slice(0,20); const before=parseInt(url.searchParams.get('before')||'0',10)||2147483647; const rows=await env.DB.prepare('SELECT id,name,score,dur,ts,hidden,claim,substr(dev,1,4) tag FROM scores WHERE game=? AND round=? AND id<? ORDER BY id DESC LIMIT 500').bind(game,rd,before).all(); return json({round:rd,closed:await closed(env),rows:rows.results,total:await counter(env,`cnt:${game}:${rd}`)},200,h); }
         if(p==='/admin/verify'){ const code=(url.searchParams.get('code')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); const rd=await round(env);
           const row=await env.DB.prepare('SELECT id,name,score,dur,ts,round,hidden FROM scores WHERE claim=? ORDER BY ts DESC LIMIT 1').bind(code).first(); if(!row) return json({ok:false},200,h);
           const r=await env.DB.prepare('SELECT COUNT(*) c FROM scores WHERE game=? AND round=? AND hidden=0 AND score>?').bind('invasie',row.round,row.score).first(); return json({ok:true,row,rank:r.c+1,currentRound:rd},200,h); }
-        if(p==='/admin/ping') return json({ok:true,round:await round(env)},200,h);
+        if(p==='/admin/ping') return json({ok:true,round:await round(env),closed:await closed(env)},200,h);
       }
       return json({error:'onbekend'},404,h);
     }catch(e){ return json({error:String(e.message||e)},500,h); }
