@@ -1,0 +1,12 @@
+name = "cadeau-inator"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cadeau-inator"
+database_id = "REPLACE_ME"
+
+[vars]
+ALLOWED_ORIGINS = "https://jimmyhonderd.github.io"

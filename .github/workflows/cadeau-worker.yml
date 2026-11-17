@@ -1,0 +1,46 @@
+name: Deploy Cadeau-inator worker
+# Staat alleen op branch cadeau-worker: raakt de Arena (main) niet.
+on:
+  push:
+    branches: [cadeau-worker]
+  workflow_dispatch:
+    inputs:
+      sql:
+        description: 'Optioneel: SQL om op de cadeau-database uit te voeren (bijv. afstreping resetten)'
+        required: false
+concurrency:
+  group: cadeau-worker
+  cancel-in-progress: false
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cadeau-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install wrangler
+        run: npm i -g wrangler@4
+      - name: Database aanmaken of ophalen
+        run: |
+          set -e
+          find_id='let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s).find(x=>x.name==="cadeau-inator");console.log(d?d.uuid:"")})'
+          ID=$(wrangler d1 list --json | node -e "$find_id")
+          if [ -z "$ID" ]; then wrangler d1 create cadeau-inator >/dev/null; ID=$(wrangler d1 list --json | node -e "$find_id"); fi
+          echo "database id: $ID"
+          sed -i "s/REPLACE_ME/$ID/" wrangler.toml
+      - name: Schema toepassen
+        run: wrangler d1 execute cadeau-inator --remote --file=schema.sql
+      - name: Losse SQL (handmatig)
+        if: ${{ github.event.inputs.sql != '' && github.event.inputs.sql != null }}
+        env:
+          SQL: ${{ github.event.inputs.sql }}
+        run: wrangler d1 execute cadeau-inator --remote --command "$SQL"
+      - name: Deploy worker
+        run: wrangler deploy
