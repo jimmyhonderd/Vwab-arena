@@ -10,3 +10,5 @@ database_id = "REPLACE_ME"
 
 [vars]
 ALLOWED_ORIGINS = "https://jimmyhonderd.github.io"
+# sha256("cadeau:" + beheercode) — de code zelf staat nergens in de repo
+ADMIN_HASH = "5db1a5972341a74e522bc966ad73a00184769ff9c389170706b664444d71d3ef"
